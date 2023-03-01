@@ -46,6 +46,10 @@ contract TestToken is
         internal
         override(ERC721Upgradeable, ERC721URIStorageUpgradeable)
     {
+        require(
+            ownerOf(tokenId) == msg.sender,
+            "Only the owner of the token can burn it"
+        );
         super._burn(tokenId);
     }
 
@@ -72,6 +76,13 @@ contract TestToken is
             "This address is already allowed to mint"
         );
         allowed[adminToAdd] = true;
+    }
+
+    function _beforeTokenTransfer(address from, address to) internal pure {
+        require(
+            from == address(0) || to == address(0),
+            "This is a Soulbound token. It cannot be transferred. It can only be burned by the owner."
+        );
     }
 
     modifier onlyAdmin() {
