@@ -8,7 +8,7 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
 
-contract TestToken is
+contract TestTokenV1 is
     Initializable,
     ERC721Upgradeable,
     ERC721URIStorageUpgradeable,
@@ -18,12 +18,11 @@ contract TestToken is
     using CountersUpgradeable for CountersUpgradeable.Counter;
 
     CountersUpgradeable.Counter private _tokenIdCounter;
-    mapping(address => bool) allowed;
+    mapping(address => bool) allowed_to_mint;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
-        allowed[msg.sender] = true;
     }
 
     function initialize() public initializer {
@@ -31,19 +30,24 @@ contract TestToken is
         __ERC721URIStorage_init();
         __ERC721Burnable_init();
         __Ownable_init();
+        allowed_to_mint[msg.sender] = true;
     }
 
-    function mint(address to, string memory uri) public onlyOwner onlyAdmin {
+    function mint(address to, string memory uri)
+        public
+        virtual
+        onlyOwner
+        onlyAdmin
+    {
         uint256 tokenId = _tokenIdCounter.current();
         _tokenIdCounter.increment();
         _safeMint(to, tokenId);
         _setTokenURI(tokenId, uri);
     }
 
-    // The following functions are overrides required by Solidity.
-
     function _burn(uint256 tokenId)
         internal
+        virtual
         override(ERC721Upgradeable, ERC721URIStorageUpgradeable)
     {
         require(
@@ -56,39 +60,48 @@ contract TestToken is
     function tokenURI(uint256 tokenId)
         public
         view
+        virtual
         override(ERC721Upgradeable, ERC721URIStorageUpgradeable)
         returns (string memory)
     {
         return super.tokenURI(tokenId);
     }
 
-    function disableAdmin(address adminToDisable) public onlyOwner {
+    function disableAllowed(address addressToDisable) public onlyOwner {
         require(
-            allowed[adminToDisable] == true,
+            allowed_to_mint[addressToDisable] == true,
             "This address does not exist in the allowed list"
         );
-        allowed[adminToDisable] = false;
+        allowed_to_mint[addressToDisable] = false;
     }
 
-    function addAdmin(address adminToAdd) public onlyOwner {
+    function addAllowed(address addressToAdd) public virtual onlyOwner {
         require(
-            allowed[adminToAdd] == false,
+            allowed_to_mint[addressToAdd] == false,
             "This address is already allowed to mint"
         );
-        allowed[adminToAdd] = true;
+        allowed_to_mint[addressToAdd] = true;
     }
 
-    function _beforeTokenTransfer(address from, address to) internal pure {
+    function _beforeTokenTransfer(address from, address to)
+        internal
+        pure
+        virtual
+    {
         require(
             from == address(0) || to == address(0),
             "This is a Soulbound token. It cannot be transferred. It can only be burned by the owner."
         );
     }
 
-    modifier onlyAdmin() {
+    function sayHi() public pure virtual returns (string memory) {
+        return "Hi from V1";
+    }
+
+    modifier onlyAdmin() virtual {
         require(
-            allowed[msg.sender] == true,
-            "Ownership Assertion: Caller of the function is not the owner."
+            allowed_to_mint[msg.sender] == true,
+            "Ownership Assertion: Caller of the function is not in the allowed list."
         );
         _;
     }
