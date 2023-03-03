@@ -6,6 +6,7 @@ import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URISto
 import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721BurnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
 
 contract TestTokenV1 is
@@ -13,12 +14,13 @@ contract TestTokenV1 is
     ERC721Upgradeable,
     ERC721URIStorageUpgradeable,
     ERC721BurnableUpgradeable,
-    OwnableUpgradeable
+    OwnableUpgradeable,
+    UUPSUpgradeable
 {
     using CountersUpgradeable for CountersUpgradeable.Counter;
 
     CountersUpgradeable.Counter private _tokenIdCounter;
-    mapping(address => bool) allowed_to_mint;
+    mapping(address => bool) public admins;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -30,15 +32,17 @@ contract TestTokenV1 is
         __ERC721URIStorage_init();
         __ERC721Burnable_init();
         __Ownable_init();
-        allowed_to_mint[msg.sender] = true;
+        __UUPSUpgradeable_init();
+        admins[msg.sender] = true;
     }
 
-    function mint(address to, string memory uri)
-        public
-        virtual
+    function _authorizeUpgrade(address newImplementation)
+        internal
+        override
         onlyOwner
-        onlyAdmin
-    {
+    {}
+
+    function mint(address to, string memory uri) public virtual onlyAdmin {
         uint256 tokenId = _tokenIdCounter.current();
         _tokenIdCounter.increment();
         _safeMint(to, tokenId);
@@ -67,20 +71,20 @@ contract TestTokenV1 is
         return super.tokenURI(tokenId);
     }
 
-    function disableAllowed(address addressToDisable) public onlyOwner {
+    function addAdmin(address addressToAdd) public virtual onlyOwner {
         require(
-            allowed_to_mint[addressToDisable] == true,
-            "This address does not exist in the allowed list"
-        );
-        allowed_to_mint[addressToDisable] = false;
-    }
-
-    function addAllowed(address addressToAdd) public virtual onlyOwner {
-        require(
-            allowed_to_mint[addressToAdd] == false,
+            admins[addressToAdd] == false,
             "This address is already allowed to mint"
         );
-        allowed_to_mint[addressToAdd] = true;
+        admins[addressToAdd] = true;
+    }
+
+    function disableAdmin(address addressToDisable) public onlyOwner {
+        require(
+            admins[addressToDisable] == true,
+            "This address does not exist in the allowed list"
+        );
+        admins[addressToDisable] = false;
     }
 
     function _beforeTokenTransfer(address from, address to)
@@ -94,14 +98,10 @@ contract TestTokenV1 is
         );
     }
 
-    function sayHi() public pure virtual returns (string memory) {
-        return "Hi from V1";
-    }
-
     modifier onlyAdmin() virtual {
         require(
-            allowed_to_mint[msg.sender] == true,
-            "Ownership Assertion: Caller of the function is not in the allowed list."
+            owner() == msg.sender || admins[msg.sender] == true,
+            "Restricted: Caller of the function is not in the admin list."
         );
         _;
     }
