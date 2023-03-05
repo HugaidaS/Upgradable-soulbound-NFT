@@ -61,6 +61,7 @@ describe('Contract Version 1 test', () => {
     });
   });
 
+  // TODO: Finish test suite
   describe('Disable Admin', () => {});
 
   describe('Mint', () => {
@@ -88,22 +89,14 @@ describe('Contract Version 1 test', () => {
       expect(await contract.tokenURI(0)).to.equal('Token string URI');
       expect(await contract.ownerOf(0)).to.equal(addr1.address);
     });
+
+    // TODO: Finish test suite
+    // if("Should revert if the Admin address is 0")
   });
 
-  // Burn token
-
+  // TODO: Finish test suite
   describe('Burn', () => {});
-
-  // Transfer token
   describe('Transfer', () => {});
-
-  // it('Admin can mint token', async () => {});
-  // it('Users cannot mint tokens', async () => {});
-  // it('Token owner should be able to burn it', async () => {});
-  // it('Not owner should NOT be able to burn it', async () => {});
-  // it('No one can transfer the token once its minted', async () => {});
-
-  // not deployed if the owner's balance is 0
 });
 
 describe('Contract Version 2 test', function () {
@@ -138,5 +131,9 @@ describe('Contract Version 2 test', function () {
     const res = async () => await oldContract.sayHi2();
     expect(res()).to.be.rejectedWith(TypeError);
   });
+
+  // TODO: Finish test suite
+  describe('Proxy address should be the same', () => {});
+  describe('Implementaion addresses should be different', () => {});
 });
 
