@@ -43,6 +43,7 @@ contract TestTokenV1 is
     {}
 
     function mint(address to, string memory uri) public virtual onlyAdmin {
+      
         uint256 tokenId = _tokenIdCounter.current();
         _tokenIdCounter.increment();
         _safeMint(to, tokenId);
@@ -54,10 +55,6 @@ contract TestTokenV1 is
         virtual
         override(ERC721Upgradeable, ERC721URIStorageUpgradeable)
     {
-        require(
-            ownerOf(tokenId) == msg.sender,
-            "Only the owner of the token can burn it"
-        );
         super._burn(tokenId);
     }
 
@@ -82,7 +79,7 @@ contract TestTokenV1 is
     function disableAdmin(address addressToDisable) public onlyOwner {
         require(
             admins[addressToDisable] == true,
-            "This address does not exist in the allowed list"
+            "This address does not exist in the admin list"
         );
         admins[addressToDisable] = false;
     }

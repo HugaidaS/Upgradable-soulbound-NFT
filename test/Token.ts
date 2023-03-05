@@ -4,7 +4,7 @@ import { expect } from 'chai';
 import { ethers, upgrades } from 'hardhat';
 import { TestTokenV1__factory, TestTokenV2__factory } from '../typechain-types';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { Contract } from 'ethers';
+import { Contract, constants } from 'ethers';
 
 // Test drafts
 
@@ -55,16 +55,71 @@ describe('Contract Version 1 test', () => {
     });
 
     it('User can`t add a new Admin', async () => {
-      await expect(
-        contract.connect(addr1).addAdmin(addr1.address)
+      expect(
+        contract.connect(addr1).addAdmin(addr2.address)
+      ).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+
+    it('Admin can`t add a new Admin', async () => {
+      await contract.connect(owner).addAdmin(addr1.address);
+      expect(await contract.admins(addr1.address)).to.equal(true);
+      expect(
+        contract.connect(addr1).addAdmin(addr2.address)
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
   });
 
   // TODO: Finish test suite
-  describe('Disable Admin', () => {});
+  describe('Disable Admin', () => {
+    it('Should be false if the connected user is not the admin', async function () {
+      expect(await contract.admins(addr1.address)).to.equal(false);
+    });
+
+    it('Should be true if the connected user is the owner', async function () {
+      expect(await contract.admins(owner.address)).to.equal(true);
+    });
+
+    it('Contract owner can`t disable the Admin that is not enabled', async () => {
+      expect(
+        contract.connect(owner).disableAdmin(addr2.address)
+      ).to.be.revertedWith('This address does not exist in the admin list');
+    });
+
+    it('Contract owner can disable Admin that is enabled', async () => {
+      await contract.connect(owner).addAdmin(addr1.address);
+      expect(await contract.admins(addr1.address)).to.equal(true);
+      await contract.connect(owner).disableAdmin(addr1.address);
+      expect(await contract.admins(addr1.address)).to.equal(false);
+    });
+
+    it('User can`t disable the Admin', async () => {
+      expect(
+        contract.connect(addr1).disableAdmin(addr2.address)
+      ).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+    it('Admin can`t disable himself', async () => {
+      await contract.connect(owner).addAdmin(addr1.address);
+      expect(await contract.admins(addr1.address)).to.equal(true);
+      expect(
+        contract.connect(addr1).disableAdmin(addr1.address)
+      ).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+    it('Admin can`t disable another Admin', async () => {
+      await contract.connect(owner).addAdmin(addr1.address);
+      await contract.connect(owner).addAdmin(addr2.address);
+      expect(await contract.admins(addr1.address)).to.equal(true);
+      expect(await contract.admins(addr2.address)).to.equal(true);
+      expect(
+        contract.connect(addr1).disableAdmin(addr2.address)
+      ).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+  });
 
   describe('Mint', () => {
+    it('Can`t mint to zero address', async () => {
+      expect(contract.connect(owner).mint(constants.AddressZero, 'Token string URI')).to.be.revertedWith("ERC721: mint to the zero address");
+    });
+
     it('Contract owner can mint token', async () => {
       await contract.connect(owner).mint(addr1.address, 'Token string URI');
       expect(await contract.tokenURI(0)).to.equal('Token string URI');
@@ -77,7 +132,7 @@ describe('Contract Version 1 test', () => {
       expect(await contract.tokenURI(0)).to.equal('Token string URI 2');
     });
     it('User can`t mint token', async () => {
-      await expect(
+      expect(
         contract.connect(addr1).mint(addr2.address, 'Token string URI 2')
       ).to.be.revertedWith(
         'Restricted: Caller of the function is not in the admin list.'
@@ -89,14 +144,56 @@ describe('Contract Version 1 test', () => {
       expect(await contract.tokenURI(0)).to.equal('Token string URI');
       expect(await contract.ownerOf(0)).to.equal(addr1.address);
     });
-
-    // TODO: Finish test suite
-    // if("Should revert if the Admin address is 0")
   });
 
-  // TODO: Finish test suite
-  describe('Burn', () => {});
-  describe('Transfer', () => {});
+  describe('Burn', () => {
+    it('Contract owner can`t burn token', async () => {
+      await contract.connect(owner).mint(addr1.address, 'Token string URI');
+      expect(await contract.tokenURI(0)).to.equal('Token string URI');
+      expect(
+        contract.connect(owner).burn(0)
+      ).to.be.revertedWith(
+        'ERC721: caller is not token owner or approved'
+      );
+    });
+
+    it('Admin can`t burn token', async () => {
+      await contract.connect(owner).addAdmin(addr1.address);
+      expect(await contract.admins(addr1.address)).to.equal(true);
+      await contract.connect(owner).mint(addr2.address, 'Token string URI');
+      expect(await contract.tokenURI(0)).to.equal('Token string URI');
+      expect(
+        contract.connect(addr1).burn(0)
+      ).to.be.revertedWith(
+        'ERC721: caller is not token owner or approved'
+      );
+    });
+
+    it('Token owner can burn token', async () => {
+      await contract.connect(owner).mint(addr2.address, 'Token string URI');
+      expect(await contract.tokenURI(0)).to.equal('Token string URI');
+      expect(await contract.connect(addr2).burn(0)).to.be.revertedWith("ERC721: invalid token ID");
+    });
+  });
+  describe('Transfer', () => {
+    it('Token owner can`t transfer token', async () => {
+      await contract.connect(owner).mint(addr2.address, 'Token string URI');
+      expect(await contract.tokenURI(0)).to.equal('Token string URI');
+      expect(await contract.connect(addr2).transferFrom(addr2.address, addr1.address,0)).to.be.revertedWith("This is a Soulbound token. It cannot be transferred. It can only be burned by the owner.");
+    });
+    it('Admin can`t transfer token', async () => {
+      await contract.connect(owner).addAdmin(addr1.address);
+      expect(await contract.admins(addr1.address)).to.equal(true);
+      await contract.connect(owner).mint(addr2.address, 'Token string URI');
+      expect(await contract.tokenURI(0)).to.equal('Token string URI');
+      expect(contract.connect(addr1).transferFrom(addr2.address, addr1.address, 0)).to.be.revertedWith("ERC721: caller is not token owner or approved");
+    });
+    it('Contract owner can`t transfer token', async () => {
+      await contract.connect(owner).mint(addr2.address, 'Token string URI');
+      expect(await contract.tokenURI(0)).to.equal('Token string URI');
+      expect(contract.connect(owner).transferFrom(addr2.address, addr1.address, 0)).to.be.revertedWith("ERC721: caller is not token owner or approved");
+    });
+  });
 });
 
 describe('Contract Version 2 test', function () {

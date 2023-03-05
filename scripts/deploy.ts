@@ -1,22 +1,27 @@
-import { ethers } from "hardhat";
+import { ethers, upgrades,network, run } from "hardhat";
+import fs from 'fs';
 
 async function main() {
-  const currentTimestampInSeconds = Math.round(Date.now() / 1000);
-  const ONE_YEAR_IN_SECS = 365 * 24 * 60 * 60;
-  const unlockTime = currentTimestampInSeconds + ONE_YEAR_IN_SECS;
+  const WAIT_BLOCK_CONFIRMATIONS = 6;
+  const TokenV1 = await ethers.getContractFactory("TestTokenV1");
+  let contract = await upgrades.deployProxy(TokenV1, [], {
+    initializer: 'initialize',
+    kind: 'uups',
+  });
 
-  const lockedAmount = ethers.utils.parseEther("1");
+  await contract.deployTransaction.wait(WAIT_BLOCK_CONFIRMATIONS);
 
-  const Lock = await ethers.getContractFactory("Lock");
-  const lock = await Lock.deploy(unlockTime, { value: lockedAmount });
+  console.log(`Contract NFT token deployed to ${contract.address} on ${network.name}`);
+  console.log(`Verifying contract on Polygonscan...`);
 
-  await lock.deployed();
+  await run(`verify:verify`, {
+    address: contract.address,
+    constructorArguments: [],
+  });
 
-  console.log(`Lock with 1 ETH and unlock timestamp ${unlockTime} deployed to ${lock.address}`);
+  fs.writeFileSync('./config.js',`export const NFT_address = "${contract.address}"`);
 }
 
-// We recommend this pattern to be able to use async/await everywhere
-// and properly handle errors.
 main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
